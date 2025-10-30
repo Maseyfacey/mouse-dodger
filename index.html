@@ -22,7 +22,8 @@ body {
 #score, #highScore, #usernameInput, #leaderboard, #rank, #worldRecordNotif {
     margin: 5px 0;
 }
-input { padding: 5px; font-size: 16px; }
+input { padding: 5px; font-size: 16px; margin-right:5px;}
+button { padding: 5px 10px; font-size: 16px; margin-right:5px; }
 #worldRecordNotif {
     color: yellow;
     font-weight: bold;
@@ -33,8 +34,12 @@ input { padding: 5px; font-size: 16px; }
 <body>
 <div id="ui">
     <div>
-        Username: <input type="text" id="usernameInput" placeholder="Enter your name">
+        Username: <input type="text" id="usernameInput" placeholder="Enter username">
+        Password: <input type="password" id="passwordInput" placeholder="Enter password">
+        <button id="registerBtn">Register</button>
+        <button id="loginBtn">Login</button>
     </div>
+    <div id="userStatus">Not logged in</div>
     <div id="score">Score: 0</div>
     <div id="highScore">High Score: 0</div>
     <div id="rank">Rank: 0</div>
@@ -58,8 +63,6 @@ const firebaseConfig = {
   messagingSenderId: "157369124865",
   appId: "1:157369124865:web:8b537dbb20942760999800"
 };
-
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
@@ -70,30 +73,60 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 let score = 0;
-let highScore = localStorage.getItem('mouseDodgeHigh') || 0;
+let highScore = 0;
 let obstacles = [];
 let mouseX = 0;
 let mouseY = 0;
-let username = '';
+let currentUser = null;
 let worldRecord = 0;
 
 document.getElementById('highScore').innerText = 'High Score: ' + highScore;
 
-/* --- USERNAME INPUT --- */
+/* --- AUTH ELEMENTS --- */
 const usernameInput = document.getElementById('usernameInput');
-usernameInput.addEventListener('change', () => {
-    username = usernameInput.value.trim() || 'Player';
+const passwordInput = document.getElementById('passwordInput');
+const registerBtn = document.getElementById('registerBtn');
+const loginBtn = document.getElementById('loginBtn');
+const userStatus = document.getElementById('userStatus');
+
+/* --- REGISTER --- */
+registerBtn.addEventListener('click', () => {
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+    if(!username || !password) return alert("Enter username and password");
+
+    db.ref('users/' + username).get().then(snapshot => {
+        if(snapshot.exists()) return alert("Username taken");
+        db.ref('users/' + username).set({ password: password, highScore: 0 });
+        currentUser = username;
+        highScore = 0;
+        document.getElementById('highScore').innerText = 'High Score: ' + highScore;
+        userStatus.innerText = "Logged in as: " + username;
+        updateLeaderboard();
+    });
+});
+
+/* --- LOGIN --- */
+loginBtn.addEventListener('click', () => {
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+    db.ref('users/' + username).get().then(snapshot => {
+        if(!snapshot.exists()) return alert("User not found");
+        if(snapshot.val().password !== password) return alert("Incorrect password");
+        currentUser = username;
+        highScore = snapshot.val().highScore || 0;
+        document.getElementById('highScore').innerText = 'High Score: ' + highScore;
+        userStatus.innerText = "Logged in as: " + username;
+        updateLeaderboard();
+    });
 });
 
 /* --- MOUSE TRACKING --- */
-document.addEventListener('mousemove', e => {
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-});
+document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
 document.addEventListener('mouseleave', () => { resetGame(); });
 
 /* --- HIT SOUND --- */
-const hitSound = new Audio('hit_sound.mp3'); // Replace with your sound file
+const hitSound = new Audio('hit_sound.mp3'); // Replace with your sound
 
 /* --- OBSTACLE CLASS --- */
 class Obstacle {
@@ -131,7 +164,7 @@ class Obstacle {
 /* --- GAME LOOP --- */
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (Math.random() < 0.03) obstacles.push(new Obstacle(Math.floor(Math.random()*3)+1));
+    if(Math.random() < 0.03) obstacles.push(new Obstacle(Math.floor(Math.random()*3)+1));
     obstacles.forEach(ob => { ob.update(); ob.draw(); });
     score += 0.1;
     document.getElementById('score').innerText = 'Score: ' + Math.floor(score);
@@ -141,13 +174,13 @@ gameLoop();
 
 /* --- RESET FUNCTION --- */
 function resetGame() {
-    if(score > highScore) {
+    if(currentUser && score > highScore){
         highScore = Math.floor(score);
-        localStorage.setItem('mouseDodgeHigh', highScore);
         document.getElementById('highScore').innerText = 'High Score: ' + highScore;
+        db.ref('users/' + currentUser).update({ highScore });
+        db.ref('leaderboard/' + currentUser).set({ score: highScore });
     }
-    if(username) { db.ref('leaderboard/' + username).set({ score: highScore }); }
-    if(Math.floor(score) > worldRecord) {
+    if(Math.floor(score) > worldRecord){
         worldRecord = Math.floor(score);
         db.ref('worldRecord').set(worldRecord);
         document.getElementById('worldRecordNotif').style.display='block';
@@ -155,39 +188,35 @@ function resetGame() {
     }
     score = 0;
     obstacles = [];
-    updateLeaderboard(); // refresh leaderboard after reset
+    updateLeaderboard();
 }
 
-/* --- FAST LEADERBOARD --- */
-function updateLeaderboard() {
-    // Load top 5 scores only
-    db.ref('leaderboard').orderByChild('score').limitToLast(5).once('value', snapshot => {
+/* --- LEADERBOARD --- */
+function updateLeaderboard(){
+    db.ref('leaderboard').orderByChild('score').limitToLast(5).once('value', snapshot=>{
         const data = snapshot.val();
         if(!data) return;
         const sorted = Object.entries(data).sort((a,b)=>b[1].score - a[1].score);
         const board = sorted.map(([name,val])=>`${name}: ${val.score}`).join('<br>');
         document.getElementById('leaderboard').innerHTML = '<strong>Leaderboard:</strong><br>' + board;
 
-        // Show your rank (scan all scores once)
-        if(username){
+        // Rank
+        if(currentUser){
             db.ref('leaderboard').orderByChild('score').once('value', snap=>{
                 const allData = snap.val();
                 if(!allData) return;
                 const allSorted = Object.entries(allData).sort((a,b)=>b[1].score - a[1].score);
-                const rank = allSorted.findIndex(([name,val])=>name===username)+1 || '-';
+                const rank = allSorted.findIndex(([name,val])=>name===currentUser)+1 || '-';
                 document.getElementById('rank').innerText = 'Rank: ' + rank;
             });
         }
     });
-
-    // Load world record separately
+    // World record
     db.ref('worldRecord').once('value', snapshot => { worldRecord = snapshot.val() || 0; });
 }
 
-// Initial leaderboard load
-updateLeaderboard();
-// Refresh every 5 seconds
-setInterval(updateLeaderboard, 5000);
+// Refresh leaderboard every 5 seconds
+setInterval(updateLeaderboard,5000);
 
 /* --- RESIZE CANVAS --- */
 window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
