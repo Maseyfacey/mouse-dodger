@@ -1,20 +1,65 @@
-<!-- Firebase -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mouse Dodge Game Deluxe</title>
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    cursor: url('YOUR_CURSOR_IMAGE.png'), auto; /* Replace with your cursor image */
+    background-color: #222;
+    font-family: Arial, sans-serif;
+}
+#gameCanvas { display: block; background-color: #333; }
+#ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+}
+#score, #highScore, #usernameInput, #leaderboard, #rank, #worldRecordNotif {
+    margin: 5px 0;
+}
+input { padding: 5px; font-size: 16px; }
+#worldRecordNotif {
+    color: yellow;
+    font-weight: bold;
+    display: none;
+}
+</style>
+</head>
+<body>
+<div id="ui">
+    <div>
+        Username: <input type="text" id="usernameInput" placeholder="Enter your name">
+    </div>
+    <div id="score">Score: 0</div>
+    <div id="highScore">High Score: 0</div>
+    <div id="rank">Rank: 0</div>
+    <div id="leaderboard"><strong>Leaderboard:</strong><br>Loading...</div>
+    <div id="worldRecordNotif">🌟 New World Record! 🌟</div>
+</div>
+<canvas id="gameCanvas"></canvas>
+
+<!-- Firebase compat scripts -->
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
 <script>
-// Your web app's Firebase configuration
+// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyBonSbMLHvbMDpPYKqI2R34sH1hd4bgmE8",
   authDomain: "dodger-d0c2e.firebaseapp.com",
-  databaseURL: "https://dodger-d0c2e-default-rtdb.firebaseio.com", // add databaseURL
+  databaseURL: "https://dodger-d0c2e-default-rtdb.firebaseio.com",
   projectId: "dodger-d0c2e",
   storageBucket: "dodger-d0c2e.appspot.com",
   messagingSenderId: "157369124865",
   appId: "1:157369124865:web:8b537dbb20942760999800"
 };
 
-// Initialize Firebase using compat
+// Initialize Firebase (compat version)
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
@@ -45,13 +90,12 @@ document.addEventListener('mousemove', e => {
     mouseX = e.clientX;
     mouseY = e.clientY;
 });
-
 document.addEventListener('mouseleave', () => { resetGame(); });
 
 /* --- HIT SOUND --- */
 const hitSound = new Audio('hit_sound.mp3'); // Replace with your sound file
 
-/* --- OBSTACLE CLASS WITH BEHAVIORS --- */
+/* --- OBSTACLE CLASS --- */
 class Obstacle {
     constructor(type) {
         this.type = type;
@@ -130,3 +174,5 @@ updateLeaderboard();
 /* --- RESIZE CANVAS --- */
 window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 </script>
+</body>
+</html>
