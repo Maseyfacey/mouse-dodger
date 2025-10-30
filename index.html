@@ -1,68 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mouse Dodge Game Deluxe</title>
-<style>
-body {
-    margin: 0;
-    overflow: hidden;
-    cursor: url('YOUR_CURSOR_IMAGE.png'), auto; /* Replace with your cursor image */
-    background-color: #222;
-    font-family: Arial, sans-serif;
-}
-#gameCanvas { display: block; background-color: #333; }
-#ui {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    color: white;
-}
-#score, #highScore, #usernameInput, #leaderboard, #rank, #worldRecordNotif {
-    margin: 5px 0;
-}
-input { padding: 5px; font-size: 16px; }
-#worldRecordNotif {
-    color: yellow;
-    font-weight: bold;
-    display: none;
-}
-</style>
-</head>
-<body>
-<div id="ui">
-    <div>
-        Username: <input type="text" id="usernameInput" placeholder="Enter your name">
-    </div>
-    <div id="score">Score: 0</div>
-    <div id="highScore">High Score: 0</div>
-    <div id="rank">Rank: 0</div>
-    <div id="leaderboard"><strong>Leaderboard:</strong><br>Loading...</div>
-    <div id="worldRecordNotif">🌟 New World Record! 🌟</div>
-</div>
-<canvas id="gameCanvas"></canvas>
-
 <!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
 <script>
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyBonSbMLHvbMDpPYKqI2R34sH1hd4bgmE8",
   authDomain: "dodger-d0c2e.firebaseapp.com",
+  databaseURL: "https://dodger-d0c2e-default-rtdb.firebaseio.com", // add databaseURL
   projectId: "dodger-d0c2e",
-  storageBucket: "dodger-d0c2e.firebasestorage.app",
+  storageBucket: "dodger-d0c2e.appspot.com",
   messagingSenderId: "157369124865",
-  appId: "1:157369124865:web:8b537dbb20942760999800",
-  measurementId: "G-8ZGPY7KG8T"
+  appId: "1:157369124865:web:8b537dbb20942760999800"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+// Initialize Firebase using compat
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
 
 /* --- GAME VARIABLES --- */
 const canvas = document.getElementById('gameCanvas');
@@ -106,43 +60,26 @@ class Obstacle {
         this.size = 20 + Math.random()*40;
         this.speed = 2 + Math.random()*4;
         this.color = type===1?'red':type===2?'yellow':'blue';
-        this.angle = 0; // for zig-zag
+        this.angle = 0;
         this.zigSpeed = 0.05 + Math.random()*0.05;
         this.bounce = type===3 ? true : false;
         this.direction = 1;
     }
     update() {
-        if(this.type===1) this.y += this.speed; // simple fall
-        if(this.type===2) { // zig-zag
-            this.y += this.speed;
-            this.x += Math.sin(this.angle)*50*0.02;
-            this.angle += this.zigSpeed;
-        }
-        if(this.bounce) { // bouncing horizontally
-            this.y += this.speed;
-            this.x += this.direction * this.speed;
-            if(this.x < 0 || this.x > canvas.width) this.direction *= -1;
-        }
+        if(this.type===1) this.y += this.speed;
+        if(this.type===2) { this.y += this.speed; this.x += Math.sin(this.angle)*50*0.02; this.angle += this.zigSpeed; }
+        if(this.bounce) { this.y += this.speed; this.x += this.direction * this.speed; if(this.x < 0 || this.x > canvas.width) this.direction *= -1; }
 
-        // Collision with mouse
         const dx = mouseX - this.x;
         const dy = mouseY - this.y;
-        if(Math.sqrt(dx*dx + dy*dy) < this.size/2) {
-            hitSound.play();
-            resetGame();
-        }
+        if(Math.sqrt(dx*dx + dy*dy) < this.size/2) { hitSound.play(); resetGame(); }
     }
     draw() {
         ctx.fillStyle = this.color;
         ctx.beginPath();
         if(this.type===1) ctx.arc(this.x, this.y, this.size/2, 0, Math.PI*2);
         if(this.type===2) ctx.fillRect(this.x-this.size/2,this.y-this.size/2,this.size,this.size);
-        if(this.type===3) {
-            ctx.moveTo(this.x, this.y-this.size/2);
-            ctx.lineTo(this.x-this.size/2,this.y+this.size/2);
-            ctx.lineTo(this.x+this.size/2,this.y+this.size/2);
-            ctx.closePath();
-        }
+        if(this.type===3) { ctx.moveTo(this.x, this.y-this.size/2); ctx.lineTo(this.x-this.size/2,this.y+this.size/2); ctx.lineTo(this.x+this.size/2,this.y+this.size/2); ctx.closePath(); }
         ctx.fill();
     }
 }
@@ -150,18 +87,12 @@ class Obstacle {
 /* --- GAME LOOP --- */
 function gameLoop() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Spawn obstacles
     if (Math.random() < 0.03) obstacles.push(new Obstacle(Math.floor(Math.random()*3)+1));
-
     obstacles.forEach(ob => { ob.update(); ob.draw(); });
-
     score += 0.1;
     document.getElementById('score').innerText = 'Score: ' + Math.floor(score);
-
     requestAnimationFrame(gameLoop);
 }
-
 gameLoop();
 
 /* --- RESET FUNCTION --- */
@@ -171,10 +102,7 @@ function resetGame() {
         localStorage.setItem('mouseDodgeHigh', highScore);
         document.getElementById('highScore').innerText = 'High Score: ' + highScore;
     }
-    if(username) {
-        db.ref('leaderboard/' + username).set({ score: highScore });
-    }
-    // Check world record
+    if(username) { db.ref('leaderboard/' + username).set({ score: highScore }); }
     if(Math.floor(score) > worldRecord) {
         worldRecord = Math.floor(score);
         db.ref('worldRecord').set(worldRecord);
@@ -193,26 +121,12 @@ function updateLeaderboard() {
         const sorted = Object.entries(data).sort((a,b)=>b[1].score - a[1].score);
         const board = sorted.slice(0,5).map(([name,val])=>`${name}: ${val.score}`).join('<br>');
         document.getElementById('leaderboard').innerHTML = '<strong>Leaderboard:</strong><br>' + board;
-
-        // Show your rank
-        if(username){
-            const rank = sorted.findIndex(([name,val])=>name===username)+1 || '-';
-            document.getElementById('rank').innerText = 'Rank: ' + rank;
-        }
+        if(username){ const rank = sorted.findIndex(([name,val])=>name===username)+1 || '-'; document.getElementById('rank').innerText = 'Rank: ' + rank; }
     });
-
-    // Load world record
-    db.ref('worldRecord').on('value', snapshot => {
-        worldRecord = snapshot.val() || 0;
-    });
+    db.ref('worldRecord').on('value', snapshot => { worldRecord = snapshot.val() || 0; });
 }
 updateLeaderboard();
 
 /* --- RESIZE CANVAS --- */
-window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-});
+window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
 </script>
-</body>
-</html>
