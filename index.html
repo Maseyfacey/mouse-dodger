@@ -8,7 +8,7 @@
 body {
     margin: 0;
     overflow: hidden;
-    cursor: url('YOUR_CURSOR_IMAGE.png'), auto; /* Replace with your cursor image */
+    cursor: url('YOUR_CURSOR_IMAGE.png'), auto;
     background-color: #222;
     font-family: Arial, sans-serif;
 }
@@ -48,7 +48,7 @@ input { padding: 5px; font-size: 16px; }
 <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
 
 <script>
-// Firebase configuration
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyBonSbMLHvbMDpPYKqI2R34sH1hd4bgmE8",
   authDomain: "dodger-d0c2e.firebaseapp.com",
@@ -58,7 +58,11 @@ const firebaseConfig = {
   messagingSenderId: "157369124865",
   appId: "1:157369124865:web:8b537dbb20942760999800"
 };
-    
+
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 /* --- GAME VARIABLES --- */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
@@ -151,21 +155,39 @@ function resetGame() {
     }
     score = 0;
     obstacles = [];
+    updateLeaderboard(); // refresh leaderboard after reset
 }
 
-/* --- LEADERBOARD & RANK --- */
+/* --- FAST LEADERBOARD --- */
 function updateLeaderboard() {
-    db.ref('leaderboard').orderByChild('score').on('value', snapshot => {
+    // Load top 5 scores only
+    db.ref('leaderboard').orderByChild('score').limitToLast(5).once('value', snapshot => {
         const data = snapshot.val();
         if(!data) return;
         const sorted = Object.entries(data).sort((a,b)=>b[1].score - a[1].score);
-        const board = sorted.slice(0,5).map(([name,val])=>`${name}: ${val.score}`).join('<br>');
+        const board = sorted.map(([name,val])=>`${name}: ${val.score}`).join('<br>');
         document.getElementById('leaderboard').innerHTML = '<strong>Leaderboard:</strong><br>' + board;
-        if(username){ const rank = sorted.findIndex(([name,val])=>name===username)+1 || '-'; document.getElementById('rank').innerText = 'Rank: ' + rank; }
+
+        // Show your rank (scan all scores once)
+        if(username){
+            db.ref('leaderboard').orderByChild('score').once('value', snap=>{
+                const allData = snap.val();
+                if(!allData) return;
+                const allSorted = Object.entries(allData).sort((a,b)=>b[1].score - a[1].score);
+                const rank = allSorted.findIndex(([name,val])=>name===username)+1 || '-';
+                document.getElementById('rank').innerText = 'Rank: ' + rank;
+            });
+        }
     });
-    db.ref('worldRecord').on('value', snapshot => { worldRecord = snapshot.val() || 0; });
+
+    // Load world record separately
+    db.ref('worldRecord').once('value', snapshot => { worldRecord = snapshot.val() || 0; });
 }
+
+// Initial leaderboard load
 updateLeaderboard();
+// Refresh every 5 seconds
+setInterval(updateLeaderboard, 5000);
 
 /* --- RESIZE CANVAS --- */
 window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
